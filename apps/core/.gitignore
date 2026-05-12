@@ -2,6 +2,8 @@ audio/*.TXT
 image/*.TXT
 
 extension/**
+!extension/new_standard/
+!extension/new_standard/**
 !extension/boss/**
 !extension/cardpile/**
 !extension/coin/**

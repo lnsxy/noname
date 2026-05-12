@@ -3,6 +3,12 @@ output
 node_modules
 package-lock.json
 
+# Local Codex/project notes and generated extension packages
+AGENT.md
+AGENTS.md
+TODO.md
+*.zip
+
 # IDE
 .idea/
 .vscode/

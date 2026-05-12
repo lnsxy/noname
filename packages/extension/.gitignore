@@ -1,4 +1,6 @@
 */
+!new_standard/
+!new_standard/**
 !boss/**
 !cardpile/**
 !coin/**
