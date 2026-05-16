@@ -45,7 +45,7 @@ export const skillTranslates = {
 	new_shenhua_lieren: "烈刃",
 	new_shenhua_lieren_info: "当你使用【杀】指定一个目标后，你可以与其拼点，若你赢，你获得其一张牌；若你没赢，你获得其拼点的牌，其获得你拼点的牌。",
 	new_shenhua_changbiao: "长标",
-	new_shenhua_changbiao_info: "你可以将至少两张手牌当无距离限制的【杀】使用（每阶段限一次）。然后若此【杀】对目标角色造成了伤害，此阶段结束时，你摸等量张牌。",
+	new_shenhua_changbiao_info: "你可以将至少两张手牌当无距离限制的【杀】使用（每阶段限一次）。然后若此【杀】对目标角色造成了伤害，此阶段结束时，你摸等量于转化手牌数的牌。",
 	new_shenhua_tuntian: "屯田",
 	new_shenhua_tuntian_info: "当你于回合外失去牌后，或于回合内弃置【杀】后，你可以判定。若结果为♥，你获得判定牌，否则你将判定牌置于你的武将牌上，称为“田”；你计算与其他角色的距离-X（X为“田”的数量）。",
 	new_shenhua_zaoxian: "凿险",

@@ -5,7 +5,7 @@ const characters: importCharacterConfig["character"] = {
 		hp: 3,
 		maxHp: 3,
 		skills: ["new_shenhua_hongyan", "new_shenhua_tianxiang"],
-		img: "image/character/new_shenhua_xiaoqiao.png",
+		img: "extension/new_shenhua/image/character/new_shenhua_xiaoqiao.png",
 		names: "桥|null",
 	},
 	new_shenhua_re_pangde: {
@@ -14,7 +14,7 @@ const characters: importCharacterConfig["character"] = {
 		hp: 4,
 		maxHp: 4,
 		skills: ["new_standard_mashu", "new_shenhua_jianchu"],
-		img: "image/character/new_shenhua_re_pangde.png",
+		img: "extension/new_shenhua/image/character/new_shenhua_re_pangde.png",
 	},
 	new_shenhua_sp_zhugeliang: {
 		sex: "male",
@@ -22,7 +22,7 @@ const characters: importCharacterConfig["character"] = {
 		hp: 3,
 		maxHp: 3,
 		skills: ["new_shenhua_bazhen", "new_shenhua_huoji", "new_shenhua_kanpo"],
-		img: "image/character/new_shenhua_sp_zhugeliang.png",
+		img: "extension/new_shenhua/image/character/new_shenhua_sp_zhugeliang.png",
 		names: "诸葛|亮",
 	},
 	new_shenhua_pangtong: {
@@ -31,7 +31,7 @@ const characters: importCharacterConfig["character"] = {
 		hp: 3,
 		maxHp: 3,
 		skills: ["new_shenhua_lianhuan", "new_shenhua_niepan"],
-		img: "image/character/new_shenhua_pangtong.png",
+		img: "extension/new_shenhua/image/character/new_shenhua_pangtong.png",
 	},
 	new_shenhua_yanwen: {
 		sex: "male",
@@ -39,7 +39,7 @@ const characters: importCharacterConfig["character"] = {
 		hp: 4,
 		maxHp: 4,
 		skills: ["new_shenhua_shuangxiong"],
-		img: "image/character/new_shenhua_yanwen.png",
+		img: "extension/new_shenhua/image/character/new_shenhua_yanwen.png",
 		names: "颜良|文丑",
 	},
 	new_shenhua_re_xuhuang: {
@@ -48,7 +48,7 @@ const characters: importCharacterConfig["character"] = {
 		hp: 4,
 		maxHp: 4,
 		skills: ["new_shenhua_duanliang", "new_shenhua_jiezi"],
-		img: "image/character/new_shenhua_re_xuhuang.png",
+		img: "extension/new_shenhua/image/character/new_shenhua_re_xuhuang.png",
 	},
 	new_shenhua_zhurong: {
 		sex: "female",
@@ -56,15 +56,15 @@ const characters: importCharacterConfig["character"] = {
 		hp: 4,
 		maxHp: 4,
 		skills: ["new_shenhua_juxiang", "new_shenhua_lieren", "new_shenhua_changbiao"],
-		img: "image/character/new_shenhua_zhurong.png",
+		img: "extension/new_shenhua/image/character/new_shenhua_zhurong.png",
 	},
 	new_shenhua_dengai: {
 		sex: "male",
 		group: "wei",
 		hp: 4,
 		maxHp: 4,
-		skills: ["new_shenhua_tuntian", "new_shenhua_zaoxian", "new_shenhua_jixi"],
-		img: "image/character/new_shenhua_dengai.png",
+		skills: ["new_shenhua_tuntian", "new_shenhua_zaoxian"],
+		img: "extension/new_shenhua/image/character/new_shenhua_dengai.png",
 	},
 	new_shenhua_zhanghe: {
 		sex: "male",
@@ -72,7 +72,7 @@ const characters: importCharacterConfig["character"] = {
 		hp: 4,
 		maxHp: 4,
 		skills: ["new_shenhua_qiaobian", "new_shenhua_jixian"],
-		img: "image/character/new_shenhua_zhanghe.png",
+		img: "extension/new_shenhua/image/character/new_shenhua_zhanghe.png",
 	},
 	new_shenhua_liushan: {
 		sex: "male",
@@ -80,7 +80,7 @@ const characters: importCharacterConfig["character"] = {
 		hp: 3,
 		maxHp: 3,
 		skills: ["new_shenhua_xiangle", "new_shenhua_fangquan", "new_shenhua_ruoyu"],
-		img: "image/character/new_shenhua_liushan.png",
+		img: "extension/new_shenhua/image/character/new_shenhua_liushan.png",
 	},
 };
 

@@ -612,7 +612,13 @@ export async function boot() {
 }
 
 async function getExtensionList() {
-	if (localStorage.getItem(lib.configprefix + "disable_extension")) return [];
+	if (localStorage.getItem(lib.configprefix + "disable_extension")) {
+		if (config.get("extension_auto_import") || config.get("extensions").length) {
+			localStorage.removeItem(lib.configprefix + "disable_extension");
+		} else {
+			return [];
+		}
+	}
 
 	const autoImport = (() => {
 		if (!config.get("extension_auto_import")) {
