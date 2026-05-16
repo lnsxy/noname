@@ -1272,7 +1272,7 @@ const skills = {
 				})
 				.forResult();
 			if (result.control == "本轮不再询问") {
-				player.tempBanSkill(event.skill, "roundStart", false);
+				player.tempBanSkill(event.skill, "roundEnd", false);
 				event.result = { bool: false };
 				return;
 			}

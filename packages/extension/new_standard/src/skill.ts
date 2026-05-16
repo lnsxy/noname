@@ -22,6 +22,34 @@ function hasQicaiVirtualMuniu(player) {
 	return player.hasSkill("new_standard_qicai", null, null, false) && player.hasEmptySlot(5) && lib.card.muniu;
 }
 
+function canShowQicaiVirtualMuniu(player) {
+	return hasQicaiVirtualMuniu(player);
+}
+
+function getQicaiMuniuExtraEquips(player, skill) {
+	return (player.extraEquip || []).filter(info => info[0] == skill && info[1] == "muniu");
+}
+
+function ensureQicaiMuniuExtraEquip(player, skill) {
+	const equips = getQicaiMuniuExtraEquips(player, skill);
+	if (equips.length == 1) {
+		return;
+	}
+	if (equips.length > 1) {
+		player.removeExtraEquip(skill, "muniu");
+	}
+	player.addExtraEquip(skill, "muniu", false, canShowQicaiVirtualMuniu);
+}
+
+function syncQicaiMuniuEquip(player) {
+	const active = hasQicaiVirtualMuniu(player);
+	if (player.storage.new_standard_qicai_muniu_active !== active) {
+		player.storage.new_standard_qicai_muniu_active = active;
+		player.$handleEquipChange();
+	}
+	return active;
+}
+
 function getQicaiMuniuCards(player) {
 	const cards = player.storage.new_standard_qicai_muniu_cards || [];
 	const current = cards.filter(card => get.position(card) == "s" && card.hasGaintag("muniu"));
@@ -315,12 +343,14 @@ const skills = {
 			global: ["equipAfter", "addJudgeAfter", "gainAfter", "loseAsyncAfter", "addToExpansionAfter", "phaseBefore"],
 		},
 		init(player, skill) {
-			player.addExtraEquip(skill, "muniu", true, current => hasQicaiVirtualMuniu(current));
+			ensureQicaiMuniuExtraEquip(player, skill);
+			player.storage.new_standard_qicai_muniu_active = hasQicaiVirtualMuniu(player);
 			updateQicaiMuniuMark(player);
 		},
 		onremove(player, skill) {
 			player.removeExtraEquip(skill);
 			discardQicaiMuniuCards(player);
+			delete player.storage.new_standard_qicai_muniu_active;
 			delete player.storage.new_standard_qicai_muniu_used;
 			delete player.storage.new_standard_qicai_muniu_cards;
 		},
@@ -332,7 +362,7 @@ const skills = {
 				return event.slots.includes("equip5");
 			}
 			if (event.name == "phase") {
-				return true;
+				return player.storage.new_standard_qicai_muniu_active !== hasQicaiVirtualMuniu(player);
 			}
 			if (event.name == "equip") {
 				return event.player == player;
@@ -341,8 +371,7 @@ const skills = {
 			return Boolean(evt?.es?.some(card => get.subtypes(card).includes("equip5")));
 		},
 		async content(event, trigger, player) {
-			player.$handleEquipChange();
-			if (!hasQicaiVirtualMuniu(player)) {
+			if (!syncQicaiMuniuEquip(player)) {
 				await discardQicaiMuniuCards(player);
 			} else {
 				updateQicaiMuniuMark(player);
