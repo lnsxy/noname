@@ -1285,6 +1285,396 @@ const skills = {
 			},
 		},
 	},
+
+	/**
+	 * 挟缠
+	 * 效果：限定技，出牌阶段，你可以与一名角色拼点，赢的角色视为对没赢的角色使用一张【决斗】。
+	 */
+	new_standard_xiechan: {
+		audio: false,
+		enable: "phaseUse",
+		limited: true,
+		skillAnimation: true,
+		animationColor: "metal",
+		filter(event, player) {
+			return game.hasPlayer(target => player.canCompare(target));
+		},
+		filterTarget(card, player, target) {
+			return player.canCompare(target);
+		},
+		async content(event, trigger, player) {
+			player.awakenSkill(event.name);
+			const target = event.target;
+			const result = await player.chooseToCompare(target).forResult();
+			const source = result.bool ? player : target;
+			const loser = result.bool ? target : player;
+			if (source?.isIn() && loser?.isIn()) {
+				await source.useCard({ name: "juedou", isCard: true }, loser, false);
+			}
+		},
+		ai: {
+			order: 7,
+			result: {
+				target(player, target) {
+					return get.effect(target, { name: "juedou" }, player, player);
+				},
+			},
+		},
+	},
+
+	/**
+	 * 骁果
+	 * 效果：其他角色的结束阶段开始时，你可以弃置一张基本牌，令该角色选择：
+	 * 弃置一张装备牌并令你摸一张牌，或受到你造成的1点伤害。
+	 */
+	new_standard_xiaoguo: {
+		audio: false,
+		trigger: { global: "phaseJieshuBegin" },
+		filter(event, player) {
+			return event.player != player && player.countCards("he", card => get.type(card) == "basic") > 0;
+		},
+		async cost(event, trigger, player) {
+			event.result = await player
+				.chooseToDiscard("he", get.prompt(event.skill, trigger.player), "弃置一张基本牌，令其弃置一张装备牌并令你摸一张牌，否则其受到你造成的1点伤害", card => {
+					return get.type(card) == "basic";
+				})
+				.set("ai", card => {
+					const player = get.player();
+					const target = get.event().getTrigger().player;
+					if (get.damageEffect(target, player, player) <= 0) {
+						return 0;
+					}
+					return 7 - get.value(card);
+				})
+				.forResult();
+		},
+		logTarget: "player",
+		async content(event, trigger, player) {
+			const result = await trigger.player
+				.chooseToDiscard("he", "骁果：弃置一张装备牌并令" + get.translation(player) + "摸一张牌，或受到1点伤害", card => {
+					return get.type(card) == "equip";
+				})
+				.set("ai", card => {
+					const player = get.player();
+					const source = get.event().source;
+					if (get.damageEffect(player, source, player) >= 0) {
+						return 0;
+					}
+					return 9 - get.value(card);
+				})
+				.set("source", player)
+				.forResult();
+			if (result?.bool) {
+				await player.draw();
+			} else {
+				await trigger.player.damage(player);
+			}
+		},
+	},
+
+	/**
+	 * 先登
+	 * 效果：当你造成伤害时，若本回合内所有角色均未造成过伤害，你摸一张牌。
+	 */
+	new_standard_xiandeng: {
+		audio: false,
+		trigger: { source: "damageBegin1" },
+		frequent: true,
+		filter(event, player) {
+			return !game.hasPlayer(current => current.getHistory("sourceDamage").length > 0);
+		},
+		async content(event, trigger, player) {
+			await player.draw();
+		},
+	},
+
+	/**
+	 * 仁德
+	 * 效果：出牌阶段，你可以将至少一张手牌交给其他角色。若你于此阶段内给出的牌首次达到两张，
+	 * 你可以视为使用一张基本牌。
+	 */
+	new_standard_rende: {
+		audio: false,
+		enable: "phaseUse",
+		filter(event, player) {
+			return player.countCards("h") > 0 && game.hasPlayer(current => current != player);
+		},
+		filterTarget(card, player, target) {
+			return player != target;
+		},
+		filterCard: true,
+		selectCard: [1, Infinity],
+		discard: false,
+		lose: false,
+		delay: false,
+		check(card) {
+			const player = get.owner(card);
+			if (ui.selected.cards.length && ui.selected.cards[0].name == "du") {
+				return 0;
+			}
+			if (!ui.selected.cards.length && card.name == "du") {
+				return 20;
+			}
+			if (ui.selected.cards.length >= Math.max(2, player.countCards("h") - player.hp)) {
+				return 0;
+			}
+			if (player.hp == player.maxHp || player.countCards("h") <= 1) {
+				return player.countCards("h") > player.hp ? 10 - get.value(card) : 6 - get.value(card);
+			}
+			return 10 - get.value(card);
+		},
+		async content(event, trigger, player) {
+			const oldGiven = player.countMark(event.name);
+			if (!oldGiven) {
+				player.when({ player: "phaseUseEnd" }).step(async (event, trigger, player) => {
+					player.clearMark("new_standard_rende", false);
+				});
+			}
+			player.addMark(event.name, event.cards.length, false);
+			await player.give(event.cards, event.target);
+			if (oldGiven < 2 && oldGiven + event.cards.length >= 2) {
+				const list = get.inpileVCardList(info => {
+					return info[0] == "basic" && player.hasUseTarget(new lib.element.VCard({ name: info[2], nature: info[3] }), null, true);
+				});
+				if (!list.length) {
+					return;
+				}
+				const result = await player
+					.chooseButton(["仁德：是否视为使用一张基本牌？", [list, "vcard"]])
+					.set("ai", button => get.player().getUseValue({ name: button.link[2], nature: button.link[3], isCard: true }))
+					.forResult();
+				if (result?.bool && result.links?.length) {
+					await player.chooseUseTarget(get.autoViewAs({ name: result.links[0][2], nature: result.links[0][3], isCard: true }), true);
+				}
+			}
+		},
+		ai: {
+			fireAttack: true,
+			order(skill, player) {
+				if (player.hp < player.maxHp && player.countMark("new_standard_rende") < 2 && player.countCards("h") > 1) {
+					return 10;
+				}
+				return 4;
+			},
+			result: {
+				target(player, target) {
+					if (target.hasSkillTag("nogain")) {
+						return 0;
+					}
+					if (ui.selected.cards.length && ui.selected.cards[0].name == "du") {
+						return target.hasSkillTag("nodu") ? 0 : -10;
+					}
+					return Math.max(1, 5 - target.countCards("h"));
+				},
+			},
+		},
+	},
+
+	/**
+	 * 观星
+	 * 效果：准备阶段，你可以观看牌堆顶的X张牌并任意置于牌堆顶或牌堆底。
+	 * 若全部置于牌堆底，则可在结束阶段再次发动。
+	 */
+	new_standard_guanxing: {
+		audio: false,
+		trigger: { player: ["phaseZhunbeiBegin", "phaseJieshuBegin"] },
+		frequent: true,
+		filter(event, player, name) {
+			return name != "phaseJieshuBegin" || player.hasSkill("new_standard_guanxing_on");
+		},
+		async content(event, trigger, player) {
+			const num = game.countPlayer();
+			const cards = get.cards(num, true);
+			await game.cardsGotoOrdering(cards);
+			const result = await player
+				.chooseToMove("观星：点击将牌移动到牌堆顶或牌堆底", true)
+				.set("list", [["牌堆顶", cards], ["牌堆底"]])
+				.set("processAI", list => {
+					const cards = list[0][1];
+					const player = _status.event.player;
+					const target = _status.event.getTrigger().name == "phaseZhunbei" ? player : player.next;
+					const att = get.sgn(get.attitude(player, target));
+					const top = [];
+					const judges = target.getCards("j");
+					let stopped = false;
+					if (player != target || !target.hasWuxie()) {
+						for (const judgeCard of judges) {
+							const judge = get.judge(judgeCard);
+							cards.sort((a, b) => (judge(b) - judge(a)) * att);
+							if (judge(cards[0]) * att < 0) {
+								stopped = true;
+								break;
+							}
+							top.unshift(cards.shift());
+						}
+					}
+					if (!stopped) {
+						cards.sort((a, b) => (get.value(b, player) - get.value(a, player)) * att);
+						while (cards.length) {
+							if ((get.value(cards[0], player) <= 5) == (att > 0)) {
+								break;
+							}
+							top.unshift(cards.shift());
+						}
+					}
+					return [top, cards];
+				})
+				.forResult();
+			const top = result.moved[0];
+			const bottom = result.moved[1];
+			top.reverse();
+			await game.cardsGotoPile(top.concat(bottom), ["top_cards", top], (event, card) => (event.top_cards.includes(card) ? ui.cardPile.firstChild : null));
+			if (event.triggername == "phaseZhunbeiBegin" && top.length == 0) {
+				player.addTempSkill("new_standard_guanxing_on");
+			}
+			player.popup(get.cnNumber(top.length) + "上" + get.cnNumber(bottom.length) + "下");
+			await game.delayx();
+		},
+		subSkill: {
+			on: {
+				audio: false,
+				charlotte: true,
+				sourceSkill: "new_standard_guanxing",
+			},
+		},
+	},
+
+	/**
+	 * 英姿
+	 * 效果：锁定技，摸牌阶段多摸X张，且本回合手牌上限+X。
+	 */
+	new_standard_yingzi: {
+		audio: false,
+		forced: true,
+		trigger: { player: "phaseDrawBegin2" },
+		filter(event, player) {
+			return !event.numFixed;
+		},
+		async content(event, trigger, player) {
+			const num = Number(player.countCards("h") >= 3) + Number(player.hp >= 2) + Number(player.countCards("e") >= 1);
+			trigger.num += num;
+			player.storage.new_standard_yingzi_limit = num;
+			player.addTempSkill("new_standard_yingzi_limit");
+		},
+		subSkill: {
+			limit: {
+				audio: false,
+				charlotte: true,
+				onremove: true,
+				mod: {
+					maxHandcard(player, num) {
+						return num + (player.storage.new_standard_yingzi_limit || 0);
+					},
+				},
+			},
+		},
+	},
+
+	/**
+	 * 谦逊
+	 * 效果：延时锦囊或其他角色使用的普通锦囊生效时，将所有手牌置于武将牌上，回合结束后收回。
+	 * DWL 版本不要求普通锦囊为唯一目标，因此不能直接继承本体界【谦逊】。
+	 */
+	new_standard_qianxun: {
+		audio: false,
+		trigger: {
+			target: "useCardToBegin",
+			player: "judgeBefore",
+		},
+		filter(event, player) {
+			if (!player.countCards("h")) {
+				return false;
+			}
+			if (event.getParent().name == "phaseJudge") {
+				return true;
+			}
+			if (event.name == "judge") {
+				return false;
+			}
+			return Boolean(event.card && get.type(event.card) == "trick" && event.player != player);
+		},
+		async content(event, trigger, player) {
+			const cards = player.getCards("h");
+			if (!cards.length) {
+				return;
+			}
+			const next = player.addToExpansion(cards, "giveAuto", player);
+			next.gaintag.add("reqianxun2");
+			await next;
+			player.addSkill("reqianxun2");
+		},
+		ai: {
+			effect: {
+				target(card, player, target) {
+					if (player == target || !target.hasFriend()) {
+						return;
+					}
+					const type = get.type(card);
+					const nh = Math.min(target.countCards(), game.countPlayer(current => get.attitude(target, current) > 0));
+					if (type == "trick") {
+						if (!get.tag(card, "multitarget") || get.info(card).singleCard) {
+							if (get.tag(card, "damage")) {
+								return [1.5, nh - 1];
+							}
+							return [1, nh];
+						}
+					} else if (type == "delay") {
+						return [0.5, 0.5];
+					}
+				},
+			},
+		},
+	},
+
+	/**
+	 * 除疠
+	 * 效果：出牌阶段限一次，选择任意名势力各不相同的其他角色，弃置你和这些角色各一张手牌。
+	 * 以此法弃置黑桃牌的角色各摸一张牌。
+	 */
+	new_standard_chuli: {
+		audio: false,
+		enable: "phaseUse",
+		usable: 1,
+		filter(event, player) {
+			return player.countCards("h") > 0 && game.hasPlayer(target => target != player && target.countCards("h") > 0);
+		},
+		filterTarget(card, player, target) {
+			if (target == player || target.countCards("h") == 0) {
+				return false;
+			}
+			return !ui.selected.targets.some(current => current.group == target.group);
+		},
+		selectTarget: [1, Infinity],
+		async content(event, trigger, player) {
+			const drawTargets = [];
+			const selfResult = await player.chooseToDiscard("h", true).forResult();
+			if (selfResult?.cards?.some(card => get.suit(card, player) == "spade")) {
+				drawTargets.push(player);
+			}
+			for (const target of event.targets.sortBySeat()) {
+				if (!target.isIn() || !target.countCards("h")) {
+					continue;
+				}
+				const result = await player.discardPlayerCard(target, "h", true).forResult();
+				if (result?.cards?.some(card => get.suit(card, target) == "spade")) {
+					drawTargets.push(target);
+				}
+			}
+			for (const target of drawTargets) {
+				if (target.isIn()) {
+					await target.draw();
+				}
+			}
+		},
+		ai: {
+			order: 6,
+			result: {
+				target(player, target) {
+					return -1 / Math.max(1, target.countCards("h"));
+				},
+			},
+		},
+	},
 };
 
 export default skills;

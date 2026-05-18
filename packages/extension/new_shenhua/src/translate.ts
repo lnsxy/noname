@@ -7,14 +7,17 @@ export const characterTranslates = {
 
 	new_shenhua_xiaoqiao: "小乔",
 	new_shenhua_re_pangde: "庞德",
+	new_shenhua_dianwei: "典韦",
 	new_shenhua_sp_zhugeliang: "卧龙",
 	new_shenhua_pangtong: "庞统",
 	new_shenhua_yanwen: "颜良文丑",
 	new_shenhua_re_xuhuang: "徐晃",
 	new_shenhua_zhurong: "祝融",
+	new_shenhua_lusu: "鲁肃",
 	new_shenhua_dengai: "邓艾",
 	new_shenhua_zhanghe: "张郃",
 	new_shenhua_liushan: "刘禅",
+	new_shenhua_sunce: "孙策",
 };
 
 export const skillTranslates = {
@@ -62,6 +65,10 @@ export const skillTranslates = {
 	new_shenhua_fangquan_info: "你可以跳过出牌阶段。若如此做，弃牌阶段开始时，你可以弃置一张牌，然后令一名其他角色获得一个额外回合。",
 	new_shenhua_ruoyu: "若愚",
 	new_shenhua_ruoyu_info: "主公技，觉醒技，准备阶段，若你是体力值最小的角色，你加1点体力上限并回复体力至3点，然后获得“激将”。",
+	new_shenhua_hunzi: "魂姿",
+	new_shenhua_hunzi_info: "觉醒技，准备阶段，若你的体力值为1，你减1点体力上限，并获得技能〖英姿〗和〖英魂〗。",
+	new_shenhua_zhiba: "制霸",
+	new_shenhua_zhiba_info: "主公技，其他吴势力角色的出牌阶段限一次，其可以与你拼点（若你已觉醒，你可以拒绝此拼点），若其没赢，你可以获得拼点的两张牌。",
 };
 
 export default {

@@ -1486,6 +1486,137 @@ const skills = {
 			await player.addSkills("rejijiang");
 		},
 	},
+
+	/**
+	 * 魂姿
+	 * 效果：觉醒技，准备阶段，若你的体力值不大于1，你减1点体力上限，然后获得“英姿”和“英魂”。
+	 */
+	new_shenhua_hunzi: {
+		audio: false,
+		skillAnimation: true,
+		animationColor: "wood",
+		juexingji: true,
+		derivation: ["new_standard_yingzi", "gzyinghun"],
+		trigger: { player: "phaseZhunbeiBegin" },
+		filter(event, player) {
+			return player.hp <= 1 && !player.storage.new_shenhua_hunzi;
+		},
+		forced: true,
+		async content(event, trigger, player) {
+			player.awakenSkill(event.name);
+			await player.loseMaxHp();
+			await player.addSkills(["new_standard_yingzi", "gzyinghun"]);
+		},
+		ai: {
+			threaten(player, target) {
+				return target.hp == 1 ? 2 : 0.5;
+			},
+			maixie: true,
+		},
+	},
+
+	/**
+	 * 制霸
+	 * 效果：主公技，其他吴势力角色的出牌阶段限一次，其可以与你拼点。
+	 * 若其没赢，你可以获得双方的拼点牌。
+	 */
+	new_shenhua_zhiba: {
+		audio: false,
+		zhuSkill: true,
+		global: "new_shenhua_zhiba_global",
+		subSkill: {
+			global: {
+				audio: false,
+				enable: "phaseUse",
+				prompt() {
+					const player = get.player();
+					const list = game.filterPlayer(target => target.hasZhuSkill("new_shenhua_zhiba", player) && player.canCompare(target));
+					let str = "和" + get.translation(list);
+					if (list.length > 1) {
+						str += "中的一人";
+					}
+					return str + "进行拼点。若你没赢，其可以获得两张拼点牌。";
+				},
+				filter(event, player) {
+					return player.group == "wu" && game.hasPlayer(target => target.hasZhuSkill("new_shenhua_zhiba", player) && player.canCompare(target));
+				},
+				filterTarget(card, player, target) {
+					return target.hasZhuSkill("new_shenhua_zhiba", player) && player.canCompare(target);
+				},
+				log: false,
+				prepare(cards, player, targets) {
+					targets[0].logSkill("new_shenhua_zhiba");
+				},
+				usable: 1,
+				async content(event, trigger, player) {
+					const { target } = event;
+					if (target.storage.new_shenhua_hunzi) {
+						const { bool } = await target
+							.chooseBool("是否拒绝〖制霸〗拼点？")
+							.set("choice", get.attitude(target, player) <= 0)
+							.forResult();
+						if (bool) {
+							game.log(target, "拒绝了拼点");
+							target.chat("拒绝");
+							return;
+						}
+					}
+					if (!player.canCompare(target)) {
+						return;
+					}
+					const result = await player
+						.chooseToCompare(target, card => {
+							if (card.name == "du") {
+								return 20;
+							}
+							const owner = get.owner(card);
+							const lord = get.event().getParent().target;
+							if (owner != lord && get.attitude(owner, lord) > 0) {
+								return -get.number(card);
+							}
+							return get.number(card);
+						})
+						.set("preserve", "lose")
+						.forResult();
+					if (result.bool == false) {
+						const list = [result.player, result.target].filterInD("d");
+						if (!list.length) {
+							return;
+						}
+						const next = target.chooseBool("是否获得" + get.translation(list) + "？").set("ai", () => get.value(list) > 0);
+						if ((await next.forResult()).bool) {
+							await target.gain(list, "gain2");
+						}
+					}
+				},
+				ai: {
+					basic: { order: 1 },
+					expose: 0.2,
+					result: {
+						target(player, target) {
+							if (player.countCards("h", "du") && get.attitude(player, target) < 0) {
+								return -1;
+							}
+							if (player.countCards("h") <= player.hp) {
+								return 0;
+							}
+							let maxnum = 0;
+							for (const card of target.getCards("h")) {
+								maxnum = Math.max(maxnum, get.number(card));
+							}
+							if (maxnum > 10) {
+								maxnum = 10;
+							}
+							if (maxnum < 5 && target.countCards("h") > 1) {
+								maxnum = 5;
+							}
+							return player.hasCard(card => get.number(card) < maxnum, "h") ? 1 : 0;
+						},
+					},
+				},
+			},
+		},
+	},
 };
 
 export default skills;
