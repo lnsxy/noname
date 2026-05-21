@@ -389,7 +389,7 @@ const skills = {
 				audio: "muniu_skill",
 				enable: "phaseUse",
 				filter(event, player) {
-					return hasQicaiVirtualMuniu(player) && player.countCards("h") > 0 && !player.storage.new_standard_qicai_muniu_used;
+					return hasQicaiVirtualMuniu(player) && player.countCards("h") > 0 && getQicaiMuniuCards(player).length < 5 && !player.storage.new_standard_qicai_muniu_used;
 				},
 				filterCard: true,
 				selectCard: 1,
