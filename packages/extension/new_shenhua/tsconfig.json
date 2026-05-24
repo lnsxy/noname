@@ -1,0 +1,14 @@
+{
+	"extends": "../../../tsconfig.json",
+	"include": ["src/**/*.ts", "src/**/*.d.ts", "vite.config.ts", "../../../apps/core/typings/**/*.d.ts"],
+	"compilerOptions": {
+		"lib": ["dom", "ESNext"],
+		"baseUrl": ".",
+		"typeRoots": ["../../../apps/core/typings", "./node_modules/@types"],
+		"allowJs": true,
+		"allowImportingTsExtensions": true,
+		"noEmit": true,
+		"strictPropertyInitialization": false,
+		"skipLibCheck": true
+	}
+}

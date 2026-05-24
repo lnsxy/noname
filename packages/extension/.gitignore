@@ -1,6 +1,8 @@
 */
 !new_standard/
 !new_standard/**
+!new_shenhua/
+!new_shenhua/**
 !boss/**
 !cardpile/**
 !coin/**
@@ -9,3 +11,4 @@
 !欢乐卡牌/**
 !玩点论杀/**
 !英雄杀/**
+*/node_modules/

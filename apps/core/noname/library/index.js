@@ -1556,7 +1556,7 @@ export class Library {
 						<br />
 						※ 鉴于不同平台下文件操作的性能区别，开启后可能会降低加载速度
 					`,
-					init: false,
+					init: true,
 					async onclick(bool) {
 						await game.promises.saveConfig("extension_auto_import", bool);
 					},

@@ -1,7 +1,15 @@
 import { build as buildElectron, Platform, Arch, type PackagerOptions, type Configuration } from "electron-builder";
+import { existsSync } from "node:fs";
 import { build as buildVite } from "vite";
 
+process.env.CSC_IDENTITY_AUTO_DISCOVERY ??= "false";
+
 async function main(targets: PackagerOptions["targets"], config: Partial<Configuration> = {}) {
+	const coreDist = process.argv[3] ?? "../../output/lazy-pack";
+	if (!existsSync(coreDist)) {
+		throw new Error(`Core dist not found: ${coreDist}. Run "pnpm generateLazyPack" before packaging Electron.`);
+	}
+
 	const appPaths = await buildElectron({
 		config: {
 			asar: false,
@@ -12,8 +20,8 @@ async function main(targets: PackagerOptions["targets"], config: Partial<Configu
 			},
 			files: [
 				{ from: "dist", to: "" },
-				{ from: "../../dist", to: "" },
-				{ from: "../../dist/node_modules", to: "node_modules" },
+				{ from: coreDist, to: "" },
+				{ from: `${coreDist}/node_modules`, to: "node_modules" },
 				"package.json",
 			],
 			extraMetadata: {
@@ -33,6 +41,8 @@ switch (process.argv[2]) {
 		main(Platform.WINDOWS.createTarget("nsis", Arch.x64), {
 			win: {
 				verifyUpdateCodeSignature: false,
+				signAndEditExecutable: false,
+				signExts: ["!.exe"],
 				icon: "noname.ico",
 			},
 			nsis: {
