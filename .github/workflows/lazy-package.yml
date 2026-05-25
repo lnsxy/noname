@@ -2,6 +2,11 @@ name: Package Release
 
 on:
     workflow_dispatch:
+        inputs:
+            release_tag:
+                description: "Release tag to publish, for example v0.2.0. Leave empty to build artifacts only."
+                required: false
+                type: string
     push:
         branches: [main]
         tags: ["v*"]
@@ -21,6 +26,7 @@ permissions:
 
 env:
     CSC_IDENTITY_AUTO_DISCOVERY: false
+    RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
 
 jobs:
     package-linux:
@@ -73,21 +79,19 @@ jobs:
                   path: output/*.AppImage
                   retention-days: 30
 
-            - name: Package release asset
-              if: startsWith(github.ref, 'refs/tags/v')
+            - name: Package import release asset
+              if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.release_tag != '')
               run: |
-                  cd output/lazy-pack
-                  zip -r "$GITHUB_WORKSPACE/noname-package.zip" .
-                  cd "$GITHUB_WORKSPACE/output/import-package"
+                  cd output/import-package
                   zip -r "$GITHUB_WORKSPACE/noname-import-package.zip" .
 
             - name: Upload release asset
-              if: startsWith(github.ref, 'refs/tags/v')
+              if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.release_tag != '')
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               run: |
-                  gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes "构建产物"
-                  gh release upload "$GITHUB_REF_NAME" noname-package.zip noname-import-package.zip output/*.AppImage --clobber
+                  gh release view "$RELEASE_TAG" >/dev/null 2>&1 || gh release create "$RELEASE_TAG" --target "$GITHUB_SHA" --title "$RELEASE_TAG" --notes "构建产物"
+                  gh release upload "$RELEASE_TAG" noname-import-package.zip output/*.AppImage --clobber
 
     package-windows:
         name: Build Windows Executable
@@ -127,11 +131,11 @@ jobs:
                   retention-days: 30
 
             - name: Upload release asset
-              if: startsWith(github.ref, 'refs/tags/v')
+              if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.release_tag != '')
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               shell: pwsh
               run: |
                   foreach ($asset in Get-ChildItem output -Filter "*.exe") {
-                      gh release upload "$env:GITHUB_REF_NAME" $asset.FullName --clobber
+                      gh release upload "$env:RELEASE_TAG" $asset.FullName --clobber
                   }
