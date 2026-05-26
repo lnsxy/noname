@@ -25,11 +25,19 @@ function run(command: string, args: string[]) {
 	}
 }
 
-async function buildDist() {
-	const pnpm = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
+function runPnpm(args: string[]) {
+	const pnpmCli = process.env.npm_execpath;
+	if (pnpmCli) {
+		run(process.execPath, [pnpmCli, ...args]);
+		return;
+	}
 
-	run(pnpm, ["-F", "noname...", "build"]);
-	run(pnpm, ["-F", "./packages/extension/**", "build"]);
+	run("pnpm", args);
+}
+
+async function buildDist() {
+	runPnpm(["-F", "noname...", "build"]);
+	runPnpm(["-F", "./packages/extension/**", "build"]);
 
 	console.log("合并打包结果");
 	await fs.rm(DIST_DIR, { recursive: true, force: true });
