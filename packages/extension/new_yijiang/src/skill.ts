@@ -52,8 +52,26 @@ function getNewYijiangYichengCards() {
 	return cards;
 }
 
+function canUseNewYijiangYichengCard(event, player, card) {
+	return event.filterCard({ name: card[2], nature: card[3], isCard: true }, player, event);
+}
+
 function canUseNewYijiangYicheng(player) {
 	return _status.currentPhase && _status.currentPhase != player && _status.currentPhase.isIn();
+}
+
+function isNewYijiangYichengAvailable(player) {
+	if (player.storage.temp_ban_new_yijiang_yicheng) {
+		return false;
+	}
+	return !(lib.skill.new_yijiang_yicheng.round - (game.roundNumber - player.storage.new_yijiang_yicheng_roundcount) > 0);
+}
+
+function markNewYijiangYichengRound(player) {
+	const roundname = "new_yijiang_yicheng_roundcount";
+	player.storage[roundname] = game.roundNumber;
+	player.syncStorage(roundname);
+	player.markSkill(roundname);
 }
 
 function getNewYijiangXuanhuoCards(target, target2) {
@@ -581,15 +599,22 @@ const skills = {
 		audio: false,
 		enable: ["chooseToUse", "chooseToRespond"],
 		round: 1,
+		hiddenCard(player, name) {
+			if (!canUseNewYijiangYicheng(player) || !isNewYijiangYichengAvailable(player)) {
+				return false;
+			}
+			return name == "wuxie" || (lib.inpile.includes(name) && get.type(name) == "basic");
+		},
 		filter(event, player) {
-			return canUseNewYijiangYicheng(player);
+			return canUseNewYijiangYicheng(player) && getNewYijiangYichengCards().some(card => canUseNewYijiangYichengCard(event, player, card));
 		},
 		chooseButton: {
 			dialog(event, player) {
-				return ui.create.dialog("疑城", [getNewYijiangYichengCards(), "vcard"]);
+				return ui.create.dialog("疑城", [getNewYijiangYichengCards().filter(card => canUseNewYijiangYichengCard(event, player, card)), "vcard"]);
 			},
 			filter(button, player) {
-				return _status.event.getParent().filterCard({ name: button.link[2], nature: button.link[3], isCard: true }, player, _status.event.getParent());
+				const event = _status.event.getParent();
+				return canUseNewYijiangYichengCard(event, player, button.link);
 			},
 			check(button) {
 				const player = _status.event.player;
@@ -603,6 +628,12 @@ const skills = {
 					selectCard: -1,
 					popname: true,
 					viewAs: { name: links[0][2], nature: links[0][3], isCard: true },
+					onuse(result, player) {
+						markNewYijiangYichengRound(player);
+					},
+					onrespond(event, player) {
+						markNewYijiangYichengRound(player);
+					},
 				};
 			},
 			prompt(links, player) {

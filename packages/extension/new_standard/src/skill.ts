@@ -1645,6 +1645,8 @@ const skills = {
 			return !ui.selected.targets.some(current => current.group == target.group);
 		},
 		selectTarget: [1, Infinity],
+		multitarget: true,
+		multiline: true,
 		async content(event, trigger, player) {
 			const drawTargets = [];
 			const selfResult = await player.chooseToDiscard("h", true).forResult();

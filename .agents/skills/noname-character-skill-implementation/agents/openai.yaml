@@ -1,0 +1,6 @@
+interface:
+  display_name: "Noname Character Skills"
+  short_description: "Implement noname character skill logic"
+  default_prompt: "Use $noname-character-skill-implementation to implement this noname character skill from its description."
+policy:
+  allow_implicit_invocation: true
