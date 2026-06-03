@@ -74,6 +74,32 @@ function markNewYijiangYichengRound(player) {
 	player.markSkill(roundname);
 }
 
+function getNewYijiangFiniteShaUsable(player) {
+	const card = get.autoViewAs({ name: "sha" });
+	const info = get.info(card);
+	let limit = info.usable;
+	if (typeof limit == "function") {
+		limit = limit(card, player);
+	}
+	if (typeof limit != "number" || !Number.isFinite(limit)) {
+		return 0;
+	}
+	for (const skill of player.getModableSkills()) {
+		const mod = get.info(skill)?.mod?.cardUsable;
+		if (!mod) {
+			continue;
+		}
+		const result = mod.call(game, card, player, limit);
+		if (result === false) {
+			return 0;
+		}
+		if (typeof result == "number" && Number.isFinite(result)) {
+			limit = result;
+		}
+	}
+	return Math.max(0, limit - player.countUsed(card));
+}
+
 function getNewYijiangXuanhuoCards(target, target2) {
 	const list = [null].concat(lib.inpile_nature);
 	const cards = list
@@ -159,167 +185,204 @@ function shouldInvokeNewYijiangYicheng(actor, player, cardName) {
 	}
 }
 
-const skills = {
-	/**
-	 * 落英
-	 * 效果：当其他角色的一张梅花牌因弃置，判定或打出而进入弃牌堆时，你可以获得之。
-	 */
-	new_yijiang_luoying: {
-		audio: "reluoying",
-		group: ["new_yijiang_luoying_discard", "new_yijiang_luoying_judge", "new_yijiang_luoying_respond"],
-		subfrequent: ["judge"],
-		subSkill: {
-			discard: {
-				audio: "new_yijiang_luoying",
-				trigger: { global: ["loseAfter", "loseAsyncAfter"] },
-				sourceSkill: "new_yijiang_luoying",
-				filter(event, player) {
-					return getNewYijiangLuoyingDiscardCards(event, player).length > 0;
-				},
-				async cost(event, trigger, player) {
-					if (trigger.delay == false) {
-						await game.delay();
-					}
-					const cards = getNewYijiangLuoyingDiscardCards(trigger, player);
-					event.result = await player
-						.chooseButton(["落英：选择要获得的牌", cards], [1, cards.length])
-						.set("ai", button => get.value(button.link, _status.event.player, "raw"))
-						.forResult();
-					event.result.cards = event.result.links;
-				},
-				async content(event, trigger, player) {
-					player.logSkill("new_yijiang_luoying");
-					await player.gain(event.cards, "gain2", "log");
-				},
-			},
-			judge: {
-				audio: "new_yijiang_luoying",
-				trigger: { global: "cardsDiscardAfter" },
-				sourceSkill: "new_yijiang_luoying",
-				filter(event, player) {
-					return getNewYijiangLuoyingOrderedCards(event, player, "judge").length > 0;
-				},
-				async cost(event, trigger, player) {
-					const cards = getNewYijiangLuoyingOrderedCards(trigger, player, "judge");
-					event.result = await player
-						.chooseButton(["落英：选择要获得的牌", cards], [1, cards.length])
-						.set("ai", button => get.value(button.link, _status.event.player, "raw"))
-						.forResult();
-					event.result.cards = event.result.links;
-				},
-				async content(event, trigger, player) {
-					player.logSkill("new_yijiang_luoying");
-					await player.gain(event.cards, "gain2", "log");
-				},
-			},
-			respond: {
-				audio: "new_yijiang_luoying",
-				trigger: { global: "cardsDiscardAfter" },
-				sourceSkill: "new_yijiang_luoying",
-				filter(event, player) {
-					return getNewYijiangLuoyingOrderedCards(event, player, "respond").length > 0;
-				},
-				async cost(event, trigger, player) {
-					const cards = getNewYijiangLuoyingOrderedCards(trigger, player, "respond");
-					event.result = await player
-						.chooseButton(["落英：选择要获得的牌", cards], [1, cards.length])
-						.set("ai", button => get.value(button.link, _status.event.player, "raw"))
-						.forResult();
-					event.result.cards = event.result.links;
-				},
-				async content(event, trigger, player) {
-					player.logSkill("new_yijiang_luoying");
-					await player.gain(event.cards, "gain2", "log");
-				},
-			},
-		},
-	},
+function getNewYijiangHuchenTargets(event) {
+	return game.filterPlayer(target => {
+		if (!target.isIn()) {
+			return false;
+		}
+		const shown = event.getShown?.(target);
+		return shown?.hs?.some(card => get.color(card, target) == "red");
+	});
+}
 
-	/**
-	 * 酒诗
-	 * 效果：当你需要使用【酒】时，若你的武将牌正面向上，你可以翻面，视为使用一张【酒】。当你受到伤害后，若你的武将牌背面向上，你可以翻面。当你使用【酒】后，你本回合使用【杀】次数上限+1。
-	 */
-	new_yijiang_jiushi: {
-		audio: "dcjiushi",
-		trigger: { player: "useCardAfter" },
-		filter(event, player) {
-			return event.card.name == "jiu";
-		},
-		forced: true,
-		locked: false,
-		async content(event, trigger, player) {
-			player.addTempSkill("new_yijiang_jiushi_sha", { global: "phaseEnd" });
-			player.addMark("new_yijiang_jiushi_sha", 1, false);
-		},
-		group: ["new_yijiang_jiushi_use", "new_yijiang_jiushi_damage"],
-		subSkill: {
-			use: {
-				audio: "new_yijiang_jiushi",
-				enable: "chooseToUse",
-				sourceSkill: "new_yijiang_jiushi",
-				hiddenCard(player, name) {
-					return name == "jiu" && !player.isTurnedOver();
-				},
-				filter(event, player) {
-					return !player.isTurnedOver() && event.filterCard({ name: "jiu", isCard: true }, player, event);
-				},
-				async content(event, trigger, player) {
-					if (_status.event.getParent(2).type == "dying") {
-						event.dying = player;
-						event.type = "dying";
-					}
-					await player.turnOver();
-					await player.useCard({ name: "jiu", isCard: true }, player);
-				},
-				ai: {
-					save: true,
-					skillTagFilter(player, tag, arg) {
-						return !player.isTurnedOver() && _status.event?.dying == player;
-					},
-					order: 5,
-					result: {
-						player(player) {
-							if (_status.event.parent.name == "phaseUse") {
-								if (player.countCards("h", "jiu") > 0 || !player.countCards("h", "sha")) {
-									return 0;
-								}
-								return 1;
-							}
-							if (player == _status.event.dying || player.isTurnedOver()) {
-								return 3;
-							}
-						},
-					},
-				},
-			},
-			damage: {
-				audio: "new_yijiang_jiushi",
-				trigger: { player: "damageEnd" },
-				sourceSkill: "new_yijiang_jiushi",
-				check(event, player) {
-					return player.isTurnedOver();
-				},
-				filter(event, player) {
-					return player.isTurnedOver();
-				},
-				prompt: "是否发动【酒诗】，将武将牌翻面？",
-				async content(event, trigger, player) {
-					await player.turnOver();
-				},
-			},
-			sha: {
-				charlotte: true,
-				onremove: true,
-				mod: {
-					cardUsable(card, player, num) {
-						if (card.name == "sha") {
-							return num + player.countMark("new_yijiang_jiushi_sha");
-						}
-					},
-				},
-			},
-		},
-	},
+function getNewYijiangChizhongOpinion(result, target) {
+	for (const opinion of result.opinions || []) {
+		if (result[opinion]?.some(info => info[0] == target)) {
+			return opinion;
+		}
+	}
+	return null;
+}
+
+function getNewYijiangChizhongShaCards(target) {
+	return target.getCards("h", card => get.name(card, target) == "sha" && target.canRecast(card));
+}
+
+async function viewNewYijiangChizhongHand(viewer, target) {
+	if (!viewer.isIn() || !target.isIn() || !target.countCards("h")) {
+		return;
+	}
+	await viewer.viewHandcards(target);
+}
+
+async function recastNewYijiangChizhongSha(target) {
+	const cards = getNewYijiangChizhongShaCards(target);
+	if (cards.length) {
+		await target.recast(cards);
+	}
+}
+
+const skills = {
+	// /**
+	//  * 落英
+	//  * 效果：当其他角色的一张梅花牌因弃置，判定或打出而进入弃牌堆时，你可以获得之。
+	//  */
+	// new_yijiang_luoying: {
+	// 	audio: "reluoying",
+	// 	group: ["new_yijiang_luoying_discard", "new_yijiang_luoying_judge", "new_yijiang_luoying_respond"],
+	// 	subfrequent: ["judge"],
+	// 	subSkill: {
+	// 		discard: {
+	// 			audio: "new_yijiang_luoying",
+	// 			trigger: { global: ["loseAfter", "loseAsyncAfter"] },
+	// 			sourceSkill: "new_yijiang_luoying",
+	// 			filter(event, player) {
+	// 				return getNewYijiangLuoyingDiscardCards(event, player).length > 0;
+	// 			},
+	// 			async cost(event, trigger, player) {
+	// 				if (trigger.delay == false) {
+	// 					await game.delay();
+	// 				}
+	// 				const cards = getNewYijiangLuoyingDiscardCards(trigger, player);
+	// 				event.result = await player
+	// 					.chooseButton(["落英：选择要获得的牌", cards], [1, cards.length])
+	// 					.set("ai", button => get.value(button.link, _status.event.player, "raw"))
+	// 					.forResult();
+	// 				event.result.cards = event.result.links;
+	// 			},
+	// 			async content(event, trigger, player) {
+	// 				player.logSkill("new_yijiang_luoying");
+	// 				await player.gain(event.cards, "gain2", "log");
+	// 			},
+	// 		},
+	// 		judge: {
+	// 			audio: "new_yijiang_luoying",
+	// 			trigger: { global: "cardsDiscardAfter" },
+	// 			sourceSkill: "new_yijiang_luoying",
+	// 			filter(event, player) {
+	// 				return getNewYijiangLuoyingOrderedCards(event, player, "judge").length > 0;
+	// 			},
+	// 			async cost(event, trigger, player) {
+	// 				const cards = getNewYijiangLuoyingOrderedCards(trigger, player, "judge");
+	// 				event.result = await player
+	// 					.chooseButton(["落英：选择要获得的牌", cards], [1, cards.length])
+	// 					.set("ai", button => get.value(button.link, _status.event.player, "raw"))
+	// 					.forResult();
+	// 				event.result.cards = event.result.links;
+	// 			},
+	// 			async content(event, trigger, player) {
+	// 				player.logSkill("new_yijiang_luoying");
+	// 				await player.gain(event.cards, "gain2", "log");
+	// 			},
+	// 		},
+	// 		respond: {
+	// 			audio: "new_yijiang_luoying",
+	// 			trigger: { global: "cardsDiscardAfter" },
+	// 			sourceSkill: "new_yijiang_luoying",
+	// 			filter(event, player) {
+	// 				return getNewYijiangLuoyingOrderedCards(event, player, "respond").length > 0;
+	// 			},
+	// 			async cost(event, trigger, player) {
+	// 				const cards = getNewYijiangLuoyingOrderedCards(trigger, player, "respond");
+	// 				event.result = await player
+	// 					.chooseButton(["落英：选择要获得的牌", cards], [1, cards.length])
+	// 					.set("ai", button => get.value(button.link, _status.event.player, "raw"))
+	// 					.forResult();
+	// 				event.result.cards = event.result.links;
+	// 			},
+	// 			async content(event, trigger, player) {
+	// 				player.logSkill("new_yijiang_luoying");
+	// 				await player.gain(event.cards, "gain2", "log");
+	// 			},
+	// 		},
+	// 	},
+	// },
+
+	// /**
+	//  * 酒诗
+	//  * 效果：当你需要使用【酒】时，若你的武将牌正面向上，你可以翻面，视为使用一张【酒】。当你受到伤害后，若你的武将牌背面向上，你可以翻面。当你使用【酒】后，你本回合使用【杀】次数上限+1。
+	//  */
+	// new_yijiang_jiushi: {
+	// 	audio: "dcjiushi",
+	// 	trigger: { player: "useCardAfter" },
+	// 	filter(event, player) {
+	// 		return event.card.name == "jiu";
+	// 	},
+	// 	forced: true,
+	// 	locked: false,
+	// 	async content(event, trigger, player) {
+	// 		player.addTempSkill("new_yijiang_jiushi_sha", { global: "phaseEnd" });
+	// 		player.addMark("new_yijiang_jiushi_sha", 1, false);
+	// 	},
+	// 	group: ["new_yijiang_jiushi_use", "new_yijiang_jiushi_damage"],
+	// 	subSkill: {
+	// 		use: {
+	// 			audio: "new_yijiang_jiushi",
+	// 			enable: "chooseToUse",
+	// 			sourceSkill: "new_yijiang_jiushi",
+	// 			hiddenCard(player, name) {
+	// 				return name == "jiu" && !player.isTurnedOver();
+	// 			},
+	// 			filter(event, player) {
+	// 				return !player.isTurnedOver() && event.filterCard({ name: "jiu", isCard: true }, player, event);
+	// 			},
+	// 			async content(event, trigger, player) {
+	// 				if (_status.event.getParent(2).type == "dying") {
+	// 					event.dying = player;
+	// 					event.type = "dying";
+	// 				}
+	// 				await player.turnOver();
+	// 				await player.useCard({ name: "jiu", isCard: true }, player);
+	// 			},
+	// 			ai: {
+	// 				save: true,
+	// 				skillTagFilter(player, tag, arg) {
+	// 					return !player.isTurnedOver() && _status.event?.dying == player;
+	// 				},
+	// 				order: 5,
+	// 				result: {
+	// 					player(player) {
+	// 						if (_status.event.parent.name == "phaseUse") {
+	// 							if (player.countCards("h", "jiu") > 0 || !player.countCards("h", "sha")) {
+	// 								return 0;
+	// 							}
+	// 							return 1;
+	// 						}
+	// 						if (player == _status.event.dying || player.isTurnedOver()) {
+	// 							return 3;
+	// 						}
+	// 					},
+	// 				},
+	// 			},
+	// 		},
+	// 		damage: {
+	// 			audio: "new_yijiang_jiushi",
+	// 			trigger: { player: "damageEnd" },
+	// 			sourceSkill: "new_yijiang_jiushi",
+	// 			check(event, player) {
+	// 				return player.isTurnedOver();
+	// 			},
+	// 			filter(event, player) {
+	// 				return player.isTurnedOver();
+	// 			},
+	// 			prompt: "是否发动【酒诗】，将武将牌翻面？",
+	// 			async content(event, trigger, player) {
+	// 				await player.turnOver();
+	// 			},
+	// 		},
+	// 		sha: {
+	// 			charlotte: true,
+	// 			onremove: true,
+	// 			mod: {
+	// 				cardUsable(card, player, num) {
+	// 					if (card.name == "sha") {
+	// 						return num + player.countMark("new_yijiang_jiushi_sha");
+	// 					}
+	// 				},
+	// 			},
+	// 		},
+	// 	},
+	// },
 
 	/**
 	 * 诛害
@@ -992,64 +1055,415 @@ const skills = {
 	/**
 	 * 将驰
 	 * 效果：<b>锁定技</b>，你于出牌阶段使用【杀】的次数+1。出牌阶段，若你本阶段剩余出【杀】次数大于0，你可以令你本阶段剩余出【杀】次数-1。若如此做，你摸一张牌，然后本回合手牌上限+1。
-	 * TODO: implement
 	 */
 	new_yijiang_jiangchi: {
-		audio: false,
+		audio: "rejiangchi",
+		enable: "phaseUse",
+		filter(event, player) {
+			return getNewYijiangFiniteShaUsable(player) > 0;
+		},
+		async content(event, trigger, player) {
+			player.addTempSkill("new_yijiang_jiangchi_less", "phaseUseEnd");
+			player.addTempSkill("new_yijiang_jiangchi_limit", { global: "phaseEnd" });
+			player.addMark("new_yijiang_jiangchi_less", 1, false);
+			player.addMark("new_yijiang_jiangchi_limit", 1, false);
+			await player.draw();
+		},
+		mod: {
+			cardUsable(card, player, num) {
+				if (card.name == "sha") {
+					return num + 1;
+				}
+			},
+		},
+		ai: {
+			order: 7,
+			result: {
+				player(player) {
+					if (player.countCards("h", card => get.name(card, player) == "sha" && player.hasValueTarget(card)) >= getNewYijiangFiniteShaUsable(player)) {
+						return 0.2;
+					}
+					return 1;
+				},
+			},
+		},
+		subSkill: {
+			less: {
+				charlotte: true,
+				onremove: true,
+				intro: { content: "出杀次数-#" },
+				mod: {
+					cardUsable(card, player, num) {
+						if (card.name == "sha") {
+							return num - player.countMark("new_yijiang_jiangchi_less");
+						}
+					},
+				},
+			},
+			limit: {
+				charlotte: true,
+				onremove: true,
+				intro: { content: "本回合手牌上限+#" },
+				mod: {
+					maxHandcard(player, num) {
+						return num + player.countMark("new_yijiang_jiangchi_limit");
+					},
+				},
+			},
+		},
 	},
 
 	/**
 	 * 当先
 	 * 效果：<b>锁定技</b>，回合开始时，你从弃牌堆中获得一张【杀】并执行一个额外的出牌阶段。
-	 * TODO: implement
 	 */
 	new_yijiang_dangxian: {
-		audio: false,
+		audio: "dangxian",
+		trigger: { player: "phaseBegin" },
+		forced: true,
+		async content(event, trigger, player) {
+			const card = get.discardPile(card => card.name == "sha");
+			if (card) {
+				await player.gain(card, "gain2");
+			}
+			game.updateRoundNumber();
+			trigger.phaseList.splice(trigger.num, 0, `phaseUse|${event.name}`);
+		},
 	},
 
 	/**
 	 * 伏枥
 	 * 效果：<b>限定技</b>，当你处于濒死状态时，你可以将体力回复至X点（X为全场势力数）。然后若你的体力值为全场唯一最高，你翻面。
-	 * TODO: implement
 	 */
 	new_yijiang_fuli: {
-		audio: false,
+		audio: "refuli",
+		skillAnimation: true,
+		animationColor: "soil",
+		limited: true,
+		enable: "chooseToUse",
+		filter(event, player) {
+			return event.type == "dying" && player == event.dying;
+		},
+		async content(event, trigger, player) {
+			player.awakenSkill(event.name);
+			await player.recoverTo(game.countGroup());
+			if (player.isMaxHp(true)) {
+				await player.turnOver();
+			}
+		},
+		ai: {
+			save: true,
+			skillTagFilter(player, arg, target) {
+				return player == target;
+			},
+			result: { player: 10 },
+			threaten(player, target) {
+				if (!target.storage.new_yijiang_fuli) {
+					return 0.9;
+				}
+			},
+		},
 	},
 
 	/**
 	 * 马术
 	 * 效果：<b>锁定技</b>，你计算与其他角色的距离-1。出牌阶段开始时，你可将一张黑色牌当【杀】使用。
-	 * TODO: implement
 	 */
 	new_yijiang_mashu: {
 		audio: false,
+		locked: true,
+		trigger: { player: "phaseUseBegin" },
+		direct: true,
+		filter(event, player) {
+			return player.countCards("hes", { color: "black" }) > 0 && player.hasUseTarget({ name: "sha" }, false);
+		},
+		async content(event, trigger, player) {
+			const next = player.chooseToUse();
+			next.set("openskilldialog", "马术：是否将一张黑色牌当【杀】使用？");
+			next.set("norestore", true);
+			next.set("_backupevent", "new_yijiang_mashu_backup");
+			next.set("custom", {
+				add: {},
+				replace: { window() {} },
+			});
+			next.backup("new_yijiang_mashu_backup");
+			next.set("targetRequired", true);
+			next.set("addCount", false);
+			next.logSkill = "new_yijiang_mashu";
+			await next;
+		},
+		mod: {
+			globalFrom(from, to, distance) {
+				return distance - 1;
+			},
+		},
+		subSkill: {
+			backup: {
+				audio: false,
+				viewAs: { name: "sha" },
+				filterCard: { color: "black" },
+				position: "hes",
+				selectCard: 1,
+				check(card) {
+					return 6 - get.value(card);
+				},
+				log: false,
+			},
+		},
 	},
 
 	/**
 	 * 潜袭
 	 * 效果：准备阶段，你可以摸一张牌并弃置一张牌，然后选择距离为1的一名角色。直到回合结束，该角色不能使用或打出与此牌颜色相同的手牌；你使用牌无视其装备区内该颜色的防具。
-	 * TODO: implement
 	 */
 	new_yijiang_qianxi: {
-		audio: false,
+		audio: "reqianxi",
+		trigger: { player: "phaseZhunbeiBegin" },
+		async cost(event, trigger, player) {
+			event.result = await player.chooseBool(get.prompt2(event.skill)).set("frequentSkill", event.skill).forResult();
+		},
+		async content(event, trigger, player) {
+			await player.draw();
+			if (!player.hasCard(card => lib.filter.cardDiscardable(card, player, event.name), "he")) {
+				return;
+			}
+			const result = await player
+				.chooseToDiscard("he", true)
+				.set("ai", card => {
+					const player = get.player();
+					if (get.color(card, player)) {
+						return 7 - get.value(card, player);
+					}
+					return 4 - get.value(card, player);
+				})
+				.forResult();
+			if (!result.bool || !result.cards?.length) {
+				return;
+			}
+			const color = get.color(result.cards[0], result.cards[0].original == "h" ? player : false);
+			const targets = game.filterPlayer(current => current != player && get.distance(player, current) <= 1);
+			if (!targets.length) {
+				return;
+			}
+			const result2 = await player
+				.chooseTarget(
+					true,
+					"选择【潜袭】的目标",
+					`令其本回合不能使用或打出${get.translation(color)}手牌；你使用牌无视其装备区内${get.translation(color)}防具`,
+					(card, player, target) => target != player && get.distance(player, target) <= 1
+				)
+				.set("ai", target => -get.attitude(_status.event.player, target) * Math.sqrt(1 + target.countCards("he")))
+				.forResult();
+			if (!result2.bool || !result2.targets?.length) {
+				return;
+			}
+			const target = result2.targets[0];
+			player.line(target, "green");
+			target.storage.new_yijiang_qianxi_effect = [color, player];
+			target.addTempSkill("new_yijiang_qianxi_effect", { global: "phaseEnd" });
+			target.markSkill("new_yijiang_qianxi_effect");
+			player.storage.new_yijiang_qianxi_ignore = [target, color];
+			player.addTempSkill("new_yijiang_qianxi_ignore", { global: "phaseEnd" });
+		},
+		ai: {
+			directHit_ai: true,
+			skillTagFilter(player, tag, arg) {
+				if (tag !== "directHit_ai" || !arg?.target?.hasSkill("new_yijiang_qianxi_effect")) {
+					return false;
+				}
+				const [color, source] = arg.target.getStorage("new_yijiang_qianxi_effect");
+				if (source != player) {
+					return false;
+				}
+				if (arg.card?.name == "sha") {
+					return color == "red";
+				}
+				return color == "black";
+			},
+		},
+		subSkill: {
+			effect: {
+				mark: true,
+				charlotte: true,
+				onremove: true,
+				sourceSkill: "new_yijiang_qianxi",
+				intro: {
+					markcount: () => 0,
+					content(storage) {
+						const color = get.translation(storage[0]);
+						const source = get.translation(storage[1]);
+						return `本回合不能使用或打出${color}手牌；${source}使用牌无视你装备区内${color}防具`;
+					},
+				},
+				mod: {
+					cardEnabled2(card, player) {
+						if (get.itemtype(card) == "card" && get.color(card) == player.getStorage("new_yijiang_qianxi_effect")[0] && get.position(card) == "h") {
+							return false;
+						}
+					},
+				},
+			},
+			ignore: {
+				charlotte: true,
+				onremove: true,
+				sourceSkill: "new_yijiang_qianxi",
+				ai: {
+					unequip: true,
+					unequip_ai: true,
+					skillTagFilter(player, tag, arg) {
+						const [target, color] = player.getStorage("new_yijiang_qianxi_ignore");
+						if (!target || arg?.target != target) {
+							return false;
+						}
+						const equip = target.getEquip(2);
+						return !!equip && get.color(equip, target) == color;
+					},
+				},
+			},
+		},
 	},
 
 	/**
 	 * 虎臣
 	 * 效果：当一名角色展示红色手牌后，你可以弃置其一张牌或令其摸一张牌。
-	 * TODO: implement
 	 */
 	new_yijiang_huchen: {
 		audio: false,
+		trigger: { global: "showCardsAfter" },
+		direct: true,
+		filter(event, player) {
+			return getNewYijiangHuchenTargets(event).length > 0;
+		},
+		getIndex(event, player) {
+			return getNewYijiangHuchenTargets(event).sortBySeat();
+		},
+		async content(event, trigger, player) {
+			const target = event.indexedData;
+			if (!target?.isIn()) {
+				return;
+			}
+			const choiceList = [`弃置${get.translation(target)}的一张牌`, `令${get.translation(target)}摸一张牌`];
+			const choices = [];
+			if (target.countDiscardableCards(player, "he")) {
+				choices.push("选项一");
+			} else {
+				choiceList[0] = `<span style="opacity:0.5">${choiceList[0]}</span>`;
+			}
+			choices.push("选项二", "cancel2");
+			const result = await player
+				.chooseControl(choices)
+				.set("prompt", get.prompt("new_yijiang_huchen", target))
+				.set("choiceList", choiceList)
+				.set("ai", () => {
+					const player = _status.event.player;
+					const target = _status.event.getParent().indexedData;
+					if (get.attitude(player, target) > 0) {
+						return "选项二";
+					}
+					if (_status.event.controls.includes("选项一")) {
+						return "选项一";
+					}
+					return "cancel2";
+				})
+				.forResult();
+			if (!target.isIn()) {
+				return;
+			}
+			if (result.control == "选项一" && target.countDiscardableCards(player, "he")) {
+				player.logSkill("new_yijiang_huchen", target);
+				await player.discardPlayerCard(target, "he", true);
+			} else if (result.control == "选项二") {
+				player.logSkill("new_yijiang_huchen", target);
+				await target.draw();
+			}
+		},
 	},
 
 	/**
 	 * 持重
 	 * 效果：出牌阶段限一次，你可以与任意名体力值小于你的角色议事。然后你可以选择一名与你意见不同的角色，你与其依次观看对方的手牌，然后重铸其中的【杀】。
-	 * TODO: implement
 	 */
 	new_yijiang_chizhong: {
 		audio: false,
+		enable: "phaseUse",
+		usable: 1,
+		filter(event, player) {
+			return player.countCards("h") > 0 && game.hasPlayer(current => current != player && current.hp < player.hp && current.countCards("h") > 0);
+		},
+		filterTarget(card, player, target) {
+			return target != player && target.hp < player.hp && target.countCards("h") > 0;
+		},
+		selectTarget: [1, Infinity],
+		multitarget: true,
+		multiline: true,
+		async content(event, trigger, player) {
+			const targets = event.targets.filter(target => target.isIn() && target.countCards("h") > 0).sortBySeat();
+			if (!player.isIn() || !player.countCards("h") || !targets.length) {
+				return;
+			}
+			await player
+				.chooseToDebate([player].concat(targets))
+				.set("callback", async event => {
+					const player = event.player;
+					const result = event.debateResult;
+					if (!player.isIn() || !result?.bool) {
+						return;
+					}
+					const playerOpinion = getNewYijiangChizhongOpinion(result, player);
+					if (!playerOpinion) {
+						return;
+					}
+					const targets = result.targets.filter(target => {
+						if (target == player || !target.isIn()) {
+							return false;
+						}
+						const opinion = getNewYijiangChizhongOpinion(result, target);
+						return opinion && opinion != playerOpinion;
+					});
+					if (!targets.length) {
+						return;
+					}
+					const result2 = await player
+						.chooseTarget("持重：是否选择一名与你意见不同的角色？", (card, player, target) => {
+							return get.event().targets.includes(target);
+						})
+						.set("targets", targets)
+						.set("ai", target => {
+							const player = get.player();
+							const att = get.attitude(player, target);
+							const targetSha = getNewYijiangChizhongShaCards(target).length;
+							const playerSha = getNewYijiangChizhongShaCards(player).length;
+							return -att * (targetSha + 1) - Math.max(0, playerSha - targetSha);
+						})
+						.forResult();
+					if (!result2.bool) {
+						return;
+					}
+					const target = result2.targets[0];
+					if (!player.isIn() || !target?.isIn()) {
+						return;
+					}
+					player.logSkill("new_yijiang_chizhong", target);
+					await viewNewYijiangChizhongHand(player, target);
+					await viewNewYijiangChizhongHand(target, player);
+					if (!player.isIn() || !target.isIn()) {
+						return;
+					}
+					await recastNewYijiangChizhongSha(target);
+					if (!player.isIn() || !target.isIn()) {
+						return;
+					}
+					await recastNewYijiangChizhongSha(player);
+				});
+		},
+		ai: {
+			order: 6,
+			result: {
+				target(player, target) {
+					return -get.attitude(player, target) * (target.countCards("h", "sha") + 1);
+				},
+			},
+		},
 	},
 
 	/**
